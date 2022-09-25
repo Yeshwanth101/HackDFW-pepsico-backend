@@ -1,3 +1,5 @@
+import logging
+
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 import datetime
@@ -5,9 +7,9 @@ import uuid
 import json
 from random import randint
 from flask_cors import CORS, cross_origin
+
 app = Flask(__name__)
-cors = CORS(app)
-app.config['CORS_HEADERS'] = 'Content-Type'
+cors = CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_NOTIFICATIONS'] = False
@@ -55,7 +57,7 @@ class influencers(db.Model):
 
 
 @app.route('/viewInfluencersPerBudget', methods=['GET'])
-@cross_origin()
+@cross_origin(allow_headers=['Content-Type'])
 def getInfluencers():
     args = request.args
     requestedBudgetID = args.get("budgetID", type=str)
@@ -72,24 +74,34 @@ def getInfluencers():
     i = 0
     for influencer in allInfluencers:
         if influencer.budgetIdentifier == requestedBudgetID:
-            currInfluencer = {
-                "budgetIdentifier": requestedBudgetID,
-                "budgetName": requestedBudgetName,
-                "budgetAmount": requestedBudgetAmount,
-                "uniqueName" : influencer.uniqueName,
-                "media" : influencer.media,
-                "engagementScore" : influencer.engagementScore,
-                "likeCount": influencer.likeCount,
-                "shareCount": influencer.shareCount,
-                "viewCount": influencer.viewCount,
-                "entryDate" : influencer.entryDate
-            }
-            result.append(json.dumps(currInfluencer))
+            currInfluencer = {}
+            currInfluencer['budgetIdentifier'] = requestedBudgetID
+            currInfluencer['budgetName'] = requestedBudgetName
+            currInfluencer['budgetAmount'] = requestedBudgetAmount
+            currInfluencer['uniqueName'] = influencer.uniqueName
+            currInfluencer['media'] = influencer.media
+            currInfluencer['engagementScore'] = influencer.engagementScore
+            currInfluencer['likeCount'] = influencer.likeCount
+            currInfluencer['shareCount'] = influencer.shareCount
+            currInfluencer['viewCount'] = influencer.viewCount
+            currInfluencer['entryDate'] = influencer.entryDate
+            result.append(currInfluencer)
     return jsonify(result)
 
-@app.route('/enrollInfluencers', methods = ['post'])
-@cross_origin()
-def putInfluencers():
+@app.route('/enrollInfluencers', methods = ['POST'])
+@cross_origin(allow_headers=['Content-Type'])
+def putInfluencers(environ, start_response):
+    if environ['REQUEST_METHOD'] == 'OPTIONS':
+        start_response(
+            '200 OK',
+            [
+                ('Content-Type', 'application/json'),
+                ('Access-Control-Allow-Origin', 'http://localhost:3000'),
+                ('Access-Control-Allow-Headers', 'Authorization, Content-Type'),
+                ('Access-Control-Allow-Methods', 'POST', 'GET', 'DELETE', 'OPTIONS'),
+                ('Access-Control-Allow-Credentials', 'True')
+            ]
+        )
     influencerData = request.get_json()
     start_date = datetime.datetime.now()
     influencer = influencers(
@@ -105,10 +117,16 @@ def putInfluencers():
     )
     db.session.add(influencer)
     db.session.commit()
-    return jsonify(influencerData)
+    response = Flask.jsonify(influencerData)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Methods', 'POST', 'GET', 'DELETE', 'OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'True')
+    logging.getLogger('flask_cors').level = logging.DEBUG
+    print(response.headers)
+    return response
 
 @app.route("/deleteInfluencer", methods=['DELETE'])
-@cross_origin()
+@cross_origin(allow_headers=['Content-Type'])
 def removeInfluencer():
     args = request.args
     uniqueName = args.get("uniqueName", type=str)
@@ -151,19 +169,35 @@ class budget(db.Model):
         self.targetLocation = targetLocation
         self.state = state
 
-@app.route('/addBudget', methods = ['post'])
-@cross_origin()
-def putBudget():
+@app.route('/addBudget', methods = ['POST'])
+@cross_origin(allow_headers=['Content-Type'])
+def putBudget(environ, start_response):
+    if environ['REQUEST_METHOD'] == 'OPTIONS':
+        start_response(
+            '200 OK',
+            [
+                ('Content-Type', 'application/json'),
+                ('Access-Control-Allow-Origin', 'http://localhost:3000'),
+                ('Access-Control-Allow-Headers', 'Authorization, Content-Type'),
+                ('Access-Control-Allow-Methods', 'POST', 'GET', 'DELETE', 'OPTIONS'),
+                ('Access-Control-Allow-Credentials', 'True')
+            ]
+        )
     budgetData = request.get_json()
     start_date = datetime.datetime.now()
     end_date = start_date + datetime.timedelta(days=30)
     budgetObj = budget(budgetIdentifier=str(uuid.uuid4().hex), budgetName=budgetData['budgetName'], budgetAmount = budgetData['budgetAmount'],budgetStart=str(start_date), budgetExpiry=str(end_date), targetLocation=budgetData['targetLocation'], state=budgetData['state'])
     db.session.add(budgetObj)
     db.session.commit()
-    return jsonify(budgetData)
+    response = Flask.jsonify(budgetData)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Methods', 'POST', 'GET', 'DELETE', 'OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'True')
+    logging.getLogger('flask_cors').level = logging.DEBUG
+    return response
 
 @app.route('/getActiveBudgets', methods = ['GET'])
-@cross_origin()
+@cross_origin(allow_headers=['Content-Type'])
 def getBudget():
     allBudget = budget.query.all()
     output = []
@@ -181,7 +215,7 @@ def getBudget():
     return jsonify(output)
 
 @app.route("/deleteBudget", methods=['DELETE'])
-@cross_origin()
+@cross_origin(allow_headers=['Content-Type'])
 def removeBudget():
     args = request.args
     requestedBudgetID = args.get("budgetID", type=str)
